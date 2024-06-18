@@ -5,46 +5,70 @@ const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 
-app.use(cors());
+// Middleware
+app.use(cors()); // Enable CORS for all origins
+
+// Body parser middleware to parse JSON bodies
 app.use(bodyParser.json());
 
+// Generate OTP logic
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
 }
 
+// Store OTPs temporarily (in-memory)
 const otpMap = new Map();
+const verifiedNumbers = new Set(); // Store verified phone numbers
 
+// API endpoint to send OTP
 app.post('/api/send-otp', (req, res) => {
   const { phoneNumber } = req.body;
 
+  // Check if phone number is already verified
+  if (verifiedNumbers.has(phoneNumber)) {
+    return res.status(400).json({ error: 'Phone number is already verified.' });
+  }
+
+  // Generate OTP
   const otp = generateOTP();
-  const otpId = uuidv4();
 
-  otpMap.set(otpId, { phoneNumber, otp });
+  // Store OTP (replace with database storage for production)
+  otpMap.set(phoneNumber, otp);
 
-  console.log(`OTP ${otp} sent to ${phoneNumber} with OTP ID: ${otpId}`);
+  // Simulate sending OTP (replace with actual SMS/email logic)
+  console.log(`Sending OTP ${otp} to ${phoneNumber}`);
 
-  res.status(200).json({ otpId, otp }); // Include the OTP in the response for debugging
+  // Respond with success
+  res.status(200).json({ message: 'OTP sent successfully', otpId: uuidv4(), otp }); // Include otp for debugging
 });
 
+// API endpoint to verify OTP
 app.post('/api/verify-otp', (req, res) => {
-  const { otpId, otp } = req.body;
+  const { phoneNumber, otp } = req.body;
 
-  const storedOtpData = otpMap.get(otpId);
+  // Retrieve OTP from storage (replace with database retrieval for production)
+  const storedOTP = otpMap.get(phoneNumber);
 
-  if (!storedOtpData) {
-    return res.status(400).json({ success: false, message: 'OTP not found. Please request a new OTP.' });
+  if (!storedOTP) {
+    return res.status(400).json({ error: 'OTP not found. Please request a new OTP.' });
   }
 
-  if (otp !== storedOtpData.otp) {
-    return res.status(400).json({ success: false, message: 'Incorrect OTP. Please try again.' });
+  // Compare OTPs
+  if (otp !== storedOTP) {
+    return res.status(400).json({ error: 'Incorrect OTP. Please try again.' });
   }
 
-  otpMap.delete(otpId);
+  // Clear OTP from storage (for one-time use, replace with your logic)
+  otpMap.delete(phoneNumber);
 
+  // Add phone number to verified set
+  verifiedNumbers.add(phoneNumber);
+
+  // Respond with success
   res.status(200).json({ success: true, message: 'OTP verified successfully' });
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
